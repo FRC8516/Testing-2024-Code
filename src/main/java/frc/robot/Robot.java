@@ -11,6 +11,7 @@ import com.ctre.phoenix6.configs.Slot0Configs;
 import com.ctre.phoenix6.configs.Slot1Configs;
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
 import com.ctre.phoenix6.controls.DutyCycleOut;
+import com.ctre.phoenix6.controls.MotionMagicVelocityVoltage;
 import com.ctre.phoenix6.controls.MotionMagicVoltage;
 import com.ctre.phoenix6.controls.NeutralOut;
 import com.ctre.phoenix6.controls.PositionVoltage;
@@ -35,6 +36,8 @@ public class Robot extends TimedRobot {
     private final PositionVoltage m_voltagePosition = new PositionVoltage(0, 0, false, 0, 0, false, false, true);
     //Motion Magic
     private final MotionMagicVoltage m_mmReq = new MotionMagicVoltage(0);
+    // create a Motion Magic Velocity request, voltage output
+    private final MotionMagicVelocityVoltage m_request = new MotionMagicVelocityVoltage(0);
     //Joystick
     private final XboxController m_joystick = new XboxController(0);
     boolean isHomed = false;
@@ -70,18 +73,19 @@ public class Robot extends TimedRobot {
     /* Configure current limits */
     MotionMagicConfigs mm = configs.MotionMagic;
     mm.MotionMagicCruiseVelocity = 5; // 5 rotations per second cruise
-    mm.MotionMagicAcceleration = 10; // Take approximately 0.5 seconds to reach max vel
-    // Take approximately 0.2 seconds to reach max accel 
-    mm.MotionMagicJerk = 50;
+    mm.MotionMagicAcceleration = 400; // Target acceleration of 400 rps/s (0.25 seconds to max)
+    mm.MotionMagicJerk = 4000; // Target jerk of 4000 rps/s/s (0.1 seconds)
 
     Slot1Configs slot1 = configs.Slot1;
     slot1.GravityType = GravityTypeValue.Arm_Cosine;
-    slot1.kP = 60;
-    slot1.kI = 0;
-    slot1.kD = 0.1;
-    slot1.kV = 0.12;
-    slot1.kS = 0.25; // Approximately 0.25V to get the mechanism moving
-
+    slot1.kS = 0.25; // Add 0.25 V output to overcome static friction
+    slot1.kV = 0.12; // A velocity target of 1 rps results in 0.12 V output
+    slot1.kA = 0.01; // An acceleration of 1 rps/s requires 0.01 V output
+    slot1.kP = 0.11; // An error of 1 rps results in 0.11 V output
+    slot1.kI = 0; // no output for integrated error
+    slot1.kD = 0; // no output for error derivative
+    
+   
     //FeedbackConfigs fdb = configs.Feedback;
     //fdb.SensorToMechanismRatio = 1;
 
@@ -174,15 +178,20 @@ public class Robot extends TimedRobot {
        // m_fx.setControl(m_brake);
     }
 
-    // Motion magic to postion
+    // Motion magic to postion by voltage
     if (m_joystick.getRightBumper()) {
-        Double dDistance = dSetpoint * 2048;
+       // Double dDistance = dSetpoint * 2048;
         /* Use voltage position */
-        m_fx.setControl(m_mmReq.withPosition(dDistance).withSlot(1));
+        m_fx.setControl(m_mmReq.withPosition(dSetpoint).withSlot(1));
      }
       else {
         /* Disable the motor instead */
       //  m_fx.setControl(m_brake);
+    }
+
+    // Motion with motion magic to position by velocity
+    if (m_joystick.getAButtonPressed()) {
+      m_fx.setControl(m_request.withVelocity(kDefaultPeriod).withSlot(1));
     }
 
   }
